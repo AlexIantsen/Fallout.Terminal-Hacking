@@ -1,30 +1,52 @@
-<?
+<?php
+header('Content-Type: application/json');
+
+// Read words from the file
 $words = @file_get_contents('wordlist.txt');
-
-if ($words === FALSE || !isset($_GET['length']) || !isset($_GET['count'])) {
-	echo "{}";
-	exit();
+if ($words === FALSE) {
+    echo json_encode(["error" => "Unable to read word list"]);
+    exit();
 }
 
-if (!is_numeric($_GET['count']) || !is_numeric($_GET['length'])) {
-	echo "{}";
-	exit();
+// Check and sanitize input parameters
+if (!isset($_GET['length']) || !isset($_GET['count']) || 
+    !is_numeric($_GET['length']) || !is_numeric($_GET['count'])) {
+    echo json_encode(["error" => "Invalid parameters"]);
+    exit();
 }
 
-$words = explode(" ", $words);
-$retwords="{\"words\":[";$i=0;$index=0;$wordlen=0;$length = $_GET['length'];$count = $_GET['count'];$failsafe=0;
-do {
-	$index = rand(0,count($words));
-	$wordlen = strlen($words[$index]);
-	if ($wordlen == $length) {
-		$retwords .= "\"".strtolower($words[$index]."\",");
-		$i++;
-	} else {
-		$failsafe++;
-	}
-	if ($failsafe > 1000) $i = $failsafe;
-} while ($i < $count);
+$length = (int)$_GET['length'];
+$count = (int)$_GET['count'];
 
-$retwords = substr($retwords,0,strlen($retwords)-1) . "]}";
-echo $retwords;
+// Split words and filter by length
+$wordsArray = explode(" ", $words);
+$filteredWords = array_filter($wordsArray, function($word) use ($length) {
+    return strlen($word) == $length;
+});
+
+// If not enough words match the criteria, return an error
+if (count($filteredWords) < $count) {
+    echo json_encode(["error" => "Not enough words of the specified length"]);
+    exit();
+}
+
+// Select random words
+$selectedWords = [];
+$failsafe = 0;
+while (count($selectedWords) < $count && $failsafe < 1000) {
+    $randomWord = strtolower($filteredWords[array_rand($filteredWords)]);
+    if (!in_array($randomWord, $selectedWords)) {
+        $selectedWords[] = $randomWord;
+    }
+    $failsafe++;
+}
+
+// If failsafe triggered, return error
+if ($failsafe >= 1000) {
+    echo json_encode(["error" => "Failsafe triggered"]);
+    exit();
+}
+
+// Output selected words as JSON
+echo json_encode(["words" => $selectedWords]);
 ?>
